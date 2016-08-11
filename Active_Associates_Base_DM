@@ -1,0 +1,337 @@
+--  Active Associates Base Data Model
+--      REDUX
+--  =============================================================================================
+SELECT DISTINCT 
+       perAllPeople.PERSON_NUMBER                                                   Person_Number
+     
+	 , (Select Distinct SUBSTR( ssn.NATIONAL_IDENTIFIER_NUMBER,8,4)
+        From PER_NATIONAL_IDENTIFIERS  ssn
+        Where ssn.PERSON_ID = perAllPeople.PERSON_ID)                               LastFour
+		
+	 , Person_Names.name_First_Name                                                 First_Name 
+	 , Person_Names.name_Middle_Name                                                Middle_Name
+	 , Person_Names.name_Last_Name                                                  Last_Name
+	 , Person_Names.name_Full_Name                                                  Full_Name
+	 , Person_Names.name_Perferred_Name                                             Perferred_Name
+	 
+	 , TO_CHAR(perPersons.DATE_OF_BIRTH)                                            Birthday
+	 
+	 , DECODE(perPeopleLegislative.SEX,'M','Male','F','Female','Unknown')           Gender
+     , perPeopleLegislative.SEX                                                     Gender_Code
+	 
+	 , currentAddress.add_Address_1                                                 Addres_1
+	 , currentAddress.add_Address_2                                                 Addres_2
+	 , currentAddress.add_City                                                      City
+	 , currentAddress.add_Region_2                                                  State
+	 , currentAddress.add_Zip                                                       Zip_Code
+	 
+	 , currentPhone.phone_Phone_Type                                                Phone_Type 
+	 , currentPhone.phone_Phone_Number                                              Phone_Number
+	 , currentPhone.phone_Area_Code                                                 Area_Code
+	 , currentPhone.phone_Extension                                                 Extension
+	 
+	 , eMailAddress.eMail_eMail_Address                                             eMail_Address
+	 , eMailAddress.eMail_eMail_Type                                                eMail_Type
+	 
+	 --		PERIODS_OF_SERVICE	 
+	 , TO_CHAR((Select MIN(pps_1.DATE_START) 
+	            From PER_PERIODS_OF_SERVICE pps_1
+		        Where perAllPeople.PERSON_ID = pps_1.PERSON_ID), 'MM/DD/YYYY')      Enterprise_Hire_Date
+	 , TO_CHAR((Select MAX(pps_2.DATE_START) 
+	            From PER_PERIODS_OF_SERVICE pps_2
+		        Where perAllPeople.PERSON_ID = pps_2.PERSON_ID), 'MM/DD/YYYY')      Legal_Employer_Hire_Date
+	 , TO_CHAR(perPeriodsService.ORIGINAL_DATE_OF_HIRE, 'MM/DD/YYYY')               Enterprise_Seniority_Date
+	 , TO_CHAR(perPeriodsService.ADJUSTED_SVC_DATE, 'MM/DD/YYYY')                   Legal_Employer_Seniority_Date
+	 
+	 , TO_CHAR((Select MAX(pps_3.ACTUAL_TERMINATION_DATE) 
+	            From PER_PERIODS_OF_SERVICE pps_3
+		        Where perAllPeople.PERSON_ID = pps_3.PERSON_ID), 'MM/DD/YYYY')      Actual_Termination_Date
+
+     , currentAssignment.Time_Clock_Code                                            Time_Clock_Code
+	 , currentAssignment.MAX_Assignment_Number                                      Assignment_Number 
+	 , currentAssignment.EMPLOYMENT_CATEGORY                                        Employment_Catrgory
+	 , currentAssignment.Assignment_Status_Type                                     Assignment_Status_Type 
+	 , currentAssignment.Assignment_Start_Date                                      Assignment_Start_Date 
+	 , currentAssignment.Assignment_End_Date                                        Assignment_End_Date 
+	 , currentAssignment.Employee_Status_ID                                         Employee_Status_ID
+	 
+	 , assignmentStatusType.USER_STATUS                                             User_Status
+     , assignmentStatusType.ASSIGNMENT_STATUS_CODE                                  Employee_Status_Code	 
+	 
+	 , perJobs.JOB_CODE                                                             Job_Code 
+	 , perJobs.NAME                                                                 Job_Name
+	 
+	 , hrLocationsAll.INTERNAL_LOCATION_CODE                                        Location_Code
+	 , hrLocationsAll.LOCATION_NAME                                                 Location_Name
+	 , hrLocationsAll.REGION_2                                                      Work_State
+	 
+	 , hrAllOrganizationUnits.NAME                                                  Department_Name
+	 , SUBSTR(hrAllOrganizationUnits.ATTRIBUTE1,1,4)                                Department
+	 
+	 
+	 
+	 , SupervisorData.Supervisor_Full_Name                                          Supervisor_Full_Name
+	 , SupervisorData.Supervisor_Person_Number                                      Supervisor_Person_Number
+
+	 , SalaryInformation.Salary_Amount                                              Salary_Amount
+	 , SalaryInformation.Annual_Salary                                              Annual_Salary
+	 , SalaryInformation.Salary_Basis_Name                                          Salary_Basis_Name
+	 , SalaryInformation.Salary_Start                                               SalaryStart_Date
+	 
+	 , (Select funAllBusinessUnits.BU_NAME 
+        From FUN_ALL_BUSINESS_UNITS_V funAllBusinessUnits
+        Where funAllBusinessUnits.BU_ID = currentAssignment.ass_Business_Unit_ID
+        And TRUNC(SYSDATE) Between funAllBusinessUnits.DATE_FROM 
+		                   And funAllBusinessUnits.DATE_TO)                         Business_Unit_Name
+
+	  , (Select perEthincities.ETHNICITY
+         From PER_ETHNICITIES perEthincities			
+		 Where perEthincities.PERSON_ID = perAllPeople.PERSON_ID)                   Ethnic_Code
+     
+	 , (Select fndCommonLookUps.MEANING
+	    From PER_ETHNICITIES perEthincities_1 
+		   , FND_COMMON_LOOKUPS  fndCommonLookUps
+		Where perEthincities_1.PERSON_ID = perAllPeople.PERSON_ID 
+		And perEthincities_1.PRIMARY_FLAG = 'Y'
+        And fndCommonLookUps.LOOKUP_TYPE = 'PER_ETHNICITY'
+        And perEthincities_1.ETHNICITY = fndCommonLookUps.LOOKUP_CODE )             Ethnicity
+
+		
+	 , NULL                                                                         blank_Column
+	 
+--  ====================== MAIN FROM  ===========================================================
+FROM PER_ALL_PEOPLE_F                    perAllPeople
+   , PER_PERSON_SECURED_LIST_V           perPersonSecuredList
+   , PER_PERSONS                         perPersons
+   , PER_PEOPLE_LEGISLATIVE_F            perPeopleLegislative
+   , PER_PERIODS_OF_SERVICE              perPeriodsService
+   , PER_JOBS                            perJobs
+   
+   , HR_LOCATIONS_ALL                    hrLocationsAll
+   , HR_ALL_ORGANIZATION_UNITS           hrAllOrganizationUnits
+   
+     --  =====================================================================      Person_Names
+   , ( SELECT DISTINCT
+              perPersonNames.PERSON_ID             name_Person_ID
+	        , perPersonNames.FIRST_NAME            name_First_Name
+	        , perPersonNames.MIDDLE_NAMES          name_Middle_Name 
+	        , perPersonNames.LAST_NAME             name_Last_Name
+	        , perPersonNames.FULL_NAME             name_Full_Name
+	        , perPersonNames.NAME_TYPE             name_Name_Type
+	        , perPersonNames.TITLE                 name_Title
+	        , perPersonNames.PRE_NAME_ADJUNCT      name_pre_Name_Adjunct
+	        , perPersonNames.SUFFIX                name_Suffix
+	        , perPersonNames.KNOWN_AS              name_Perferred_Name
+	        , perPersonNames.PREVIOUS_LAST_NAME    name_Previous_Last_Name
+	        , perPersonNames.HONORS                name_Honors
+	 
+       FROM PER_PERSON_NAMES_F           perPersonNames
+
+       WHERE perPersonNames.NAME_TYPE = 'GLOBAL'  
+       AND   TRUNC(SYSDATE) Between perPersonNames.EFFECTIVE_START_DATE
+                                And perPersonNames.EFFECTIVE_END_DATE  )            Person_Names
+
+	 --  =====================================================================      currentAddress
+	 --		Join to PER_ALL_PEOPLE_F with  MAILING_ADDRESS_ID
+     , (SELECT perAddresses.ADDRESS_ID             add_Address_ID
+             , perAddresses.ADDRESS_LINE_1         add_Address_1
+	         , perAddresses.ADDRESS_LINE_2         add_Address_2
+	         , perAddresses.ADDRESS_LINE_3         add_Address_3
+	         , perAddresses.ADDRESS_LINE_4         add_Address_4
+	         , perAddresses.TOWN_OR_CITY           add_City
+	         , perAddresses.REGION_1               add_Region_1
+	         , perAddresses.REGION_2               add_Region_2
+	         , perAddresses.REGION_3               add_Region_3
+	         , perAddresses.POSTAL_CODE            add_Zip
+	         , perAddresses.LONG_POSTAL_CODE       add_Zip_Plus
+	         , perAddresses.COUNTRY                add_Country
+	 
+        FROM PER_ADDRESSES_F             perAddresses
+
+        WHERE TRUNC(SYSDATE) Between perAddresses.EFFECTIVE_START_DATE 
+                                 And perAddresses.EFFECTIVE_END_DATE )              currentAddress
+	 
+	 --  =====================================================================      currentPhone
+	 , (SELECT DISTINCT
+               perPhones.PERSON_ID                     phone_Person_ID
+	         , perPhones.PHONE_ID                      phone_Phone_ID
+	         , perPhones.PHONE_TYPE                    phone_Phone_Type
+	         , perPhones.AREA_CODE                     phone_Area_Code
+	         , perPhones.PHONE_NUMBER                  phone_Phone_Number
+	         , perPhones.EXTENSION                     phone_Extension
+	         , perPhones.DATE_FROM                     phone_Date_From
+	         , perPhones.DATE_TO                       phone_Date_To
+	 
+        FROM PER_PHONES     perPhones
+
+        WHERE perPhones.DATE_TO IS NULL )                                           currentPhone
+
+
+     --  =====================================================================      eMailAddress
+     , (SELECT DISTINCT
+               perEmailAddresses.EMAIL_ADDRESS_ID      eMail_eMail_Address_ID
+	         , perEmailAddresses.PERSON_ID             eMail_Persion_D
+	         , perEmailAddresses.EMAIL_TYPE            eMail_eMail_Type
+	         , perEmailAddresses.DATE_FROM             eMail_Date_From
+	         , perEmailAddresses.DATE_TO               eMail_Date_To
+	         , perEmailAddresses.EMAIL_ADDRESS         eMail_eMail_Address 
+	 
+        FROM PER_EMAIL_ADDRESSES       perEmailAddresses
+
+        WHERE perEmailAddresses.EMAIL_TYPE = 'W1'
+        AND   perEmailAddresses.DATE_TO IS NULL )                                   eMailAddress
+
+	 --  =====================================================================      currentAssignment							 
+
+     , (SELECT DISTINCT
+               perAllAssignments.PERSON_ID                                      ass_Person_ID
+             , perAllAssignments.ASSIGNMENT_ID                                  Assignment_ID
+             , perAllAssignments.ASS_ATTRIBUTE1                                 Time_Clock_Code
+             , perAllAssignments.EMPLOYMENT_CATEGORY                            Employment_Category
+             , perAllAssignments.ASSIGNMENT_STATUS_TYPE_ID                      Employee_Status_ID
+             , perAllAssignments.BUSINESS_UNIT_ID                               Report_Department_Code
+     
+             , TO_CHAR(perAllAssignments.EFFECTIVE_START_DATE, 'MM/DD/YYYY')    Assignment_Start_Date
+             , TO_CHAR(perAllAssignments.EFFECTIVE_END_DATE, 'MM/DD/YYYY')      Assignment_End_Date
+             , perAllAssignments.ASSIGNMENT_STATUS_TYPE                         Assignment_Status_Type 
+	 
+	         , perAllAssignments.JOB_ID                                         ass_Job_ID
+             , perAllAssignments.BUSINESS_UNIT_ID                               ass_Business_Unit_ID
+             , perAllAssignments.LOCATION_ID                                    ass_Location_ID
+	         , perAllAssignments.ORGANIZATION_ID                                ass_Organization_ID
+	 
+	         , perAllAssignments.PERIOD_OF_SERVICE_ID                           ass_Period_of_Service_ID
+	 
+             , (Select MAX(paaf.ASSIGNMENT_NUMBER)
+                From PER_ALL_ASSIGNMENTS_F paaf
+                Where paaf.PERSON_ID = perAllAssignments.PERSON_ID
+                And paaf.PRIMARY_FLAG = 'Y')                                    MAX_Assignment_Number
+ 
+        FROM PER_ALL_ASSIGNMENTS_F              perAllAssignments
+
+        WHERE perAllAssignments.PRIMARY_FLAG = 'Y'
+        AND   perAllAssignments.ASSIGNMENT_TYPE = 'E'
+        AND   perAllAssignments.ASSIGNMENT_STATUS_TYPE = 'ACTIVE'
+        AND   TRUNC(SYSDATE) Between perAllAssignments.EFFECTIVE_START_DATE 
+                                 And perAllAssignments.EFFECTIVE_END_DATE
+        AND   perAllAssignments.ASSIGNMENT_NUMBER IN (Select MAX(paaf.ASSIGNMENT_NUMBER)
+                                                      From PER_ALL_ASSIGNMENTS_F paaf
+                                                      Where paaf.PERSON_ID = perAllAssignments.PERSON_ID
+                                                      And   TRUNC(SYSDATE) Between paaf.EFFECTIVE_START_DATE 
+                                                                               And paaf.EFFECTIVE_END_DATE
+                                                      And   paaf.PRIMARY_FLAG = 'Y'
+                                                      And   paaf.ASSIGNMENT_TYPE = 'E')
+
+        ORDER BY perAllAssignments.PERSON_ID )                                      currentAssignment
+
+     --  =====================================================================      assignmentStatusType
+	 , (SELECT DISTINCT 
+               ASSIGNMENT_STATUS_TYPE_ID
+	         , USER_STATUS 
+             , ASSIGNMENT_STATUS_CODE
+	         , PAY_SYSTEM_STATUS
+	         , PER_SYSTEM_STATUS
+	         , DEFAULT_FLAG
+
+        FROM PER_ASSIGNMENT_STATUS_TYPES_VL
+
+        WHERE END_DATE IS NULL )                                                    assignmentStatusType
+
+     --  =====================================================================      SupervisorData
+	 , (SELECT perAssignmentSupervisor.ASSIGNMENT_ID                  Supervisor_Assignment_ID
+             , perAssignmentSupervisor.MANAGER_ID                     Supervisor_Manager_ID
+             , TO_CHAR(perAssignmentSupervisor.EFFECTIVE_START_DATE, 'MM/DD/YYYY')  Effective_Start_Date
+             , TO_CHAR(perAssignmentSupervisor.EFFECTIVE_END_DATE, 'MM/DD/YYYY')    Effective_End_Date
+             , perAllPeople_Supervisor.PERSON_NUMBER                  Supervisor_Person_Number
+             , perAllPeople_Supervisor.PERSON_ID                      Supervisor_Person_ID
+             , perPersonNames_Supervisor.FULL_NAME                    Supervisor_Full_Name
+             , perPersonNames_Supervisor.LAST_NAME                    Supervisor_Last_Name
+             , perPersonNames_Supervisor.FIRST_NAME                   Supervisor_First_Name
+             , perPersonNames_Supervisor.MIDDLE_NAMES                 Supervisor_Middle_Name
+             , perPersonNames_Supervisor.SUFFIX                       Supervisor_Suffix
+             , perAllAssignments_Supervisor.EMPLOYMENT_CATEGORY       Supervisor_Employment_Category
+             , perAllAssignments_Supervisor.ASSIGNMENT_STATUS_TYPE_ID Supervisor_Status_ID
+             , perAssignmentStatusType.ASSIGNMENT_STATUS_CODE         Supervisor_Status_Code
+             , perAllAssignments_Supervisor.ASSIGNMENT_STATUS_TYPE    Supervisor_Status_Type 
+
+        FROM PER_ASSIGNMENT_SUPERVISORS_F  perAssignmentSupervisor
+           , PER_PERSON_NAMES_F            perPersonNames_Supervisor
+           , PER_ALL_PEOPLE_F              perAllPeople_Supervisor
+           , PER_ALL_ASSIGNMENTS_F         perAllAssignments_Supervisor
+           , PER_ASSIGNMENT_STATUS_TYPES   perAssignmentStatusType
+
+        WHERE perAssignmentSupervisor.EFFECTIVE_START_DATE IN (Select MAX(pasf.EFFECTIVE_START_DATE)
+                                                               From PER_ASSIGNMENT_SUPERVISORS_F pasf
+                                                               Where pasf.ASSIGNMENT_ID = perAssignmentSupervisor.ASSIGNMENT_ID)
+        AND   perAssignmentSupervisor.MANAGER_ID = perPersonNames_Supervisor.PERSON_ID(+)
+        AND   perAssignmentSupervisor.MANAGER_ID = perAllPeople_Supervisor.PERSON_ID(+)
+        AND   NVL(perPersonNames_Supervisor.NAME_TYPE,'GLOBAL') = 'GLOBAL'
+        AND   perAssignmentSupervisor.PERSON_ID = perAllAssignments_Supervisor.PERSON_ID
+        AND   TRUNC(SYSDATE) Between perAllAssignments_Supervisor.EFFECTIVE_START_DATE 
+	                             And perAllAssignments_Supervisor.EFFECTIVE_END_DATE
+        AND   perAllAssignments_Supervisor.PRIMARY_FLAG = 'Y'
+        AND   perAllAssignments_Supervisor.ASSIGNMENT_TYPE = 'E'
+        AND   perAllAssignments_Supervisor.ASSIGNMENT_STATUS_TYPE = 'ACTIVE'
+        AND   perAllAssignments_Supervisor.ASSIGNMENT_STATUS_TYPE_ID = perAssignmentStatusType.ASSIGNMENT_STATUS_TYPE_ID)  SupervisorData
+
+     --  =====================================================================      SalaryInformation		
+     , (SELECT cmpSalary.ASSIGNMENT_ID
+             , cmpSalary.SALARY_AMOUNT                                                         Salary_Amount 
+             , NVL (cmpSalary.SALARY_AMOUNT * cmpSalaryBasis.SALARY_ANNUALIZATION_FACTOR, 0)   Annual_Salary
+             , cmpSalaryBasis.NAME                                                             Salary_Basis_Name
+             , cmpSalary.DATE_FROM                                                             Salary_Start
+       FROM cmp_salary cmpSalary
+          , cmp_salary_bases cmpSalaryBasis
+       WHERE cmpSalary.SALARY_BASIS_ID = cmpSalaryBasis.SALARY_BASIS_ID)                       SalaryInformation
+
+
+--  ====================== MAIN WHERE  ===========================================================
+WHERE TRUNC(SYSDATE) Between perAllPeople.EFFECTIVE_START_DATE 
+                         And perAllPeople.EFFECTIVE_END_DATE
+
+AND   perAllPeople.PERSON_ID = perPersonSecuredList.PERSON_ID
+AND   TRUNC(SYSDATE) Between perPersonSecuredList.EFFECTIVE_START_DATE 
+                         And perPersonSecuredList.EFFECTIVE_END_DATE
+
+AND   perAllPeople.PERSON_ID = perPersons.PERSON_ID
+
+AND   perAllPeople.PERSON_ID = Person_Names.name_Person_ID
+-- AND   Person_Names.name_Last_Name = 'Aheron'
+
+AND   perAllPeople.PERSON_ID = perPeopleLegislative.PERSON_ID(+)
+AND   TRUNC(SYSDATE) Between perPeopleLegislative.EFFECTIVE_START_DATE 
+                         And perPeopleLegislative.EFFECTIVE_END_DATE
+
+AND   perAllPeople.MAILING_ADDRESS_ID = currentAddress.add_Address_ID(+)
+
+AND   perAllPeople.PRIMARY_PHONE_ID = currentPhone.phone_Phone_ID(+)
+
+AND   perAllPeople.PRIMARY_EMAIL_ID = eMailAddress.eMail_eMail_Address_ID(+)
+
+AND   perAllPeople.PERSON_ID = perPeriodsService.PERSON_ID
+AND   perPeriodsService.DATE_START = (Select MAX(ppos.DATE_START)
+                                     From PER_PERIODS_OF_SERVICE ppos
+                                     Where perPeriodsService.PERSON_ID = ppos.PERSON_ID )
+
+AND   perAllPeople.PERSON_ID = currentAssignment.ass_Person_ID
+AND   currentAssignment.ass_Job_ID = perJobs.JOB_ID
+AND   currentAssignment.ass_Location_ID = hrLocationsAll.LOCATION_ID
+AND   currentAssignment.ass_Organization_ID = hrAllOrganizationUnits.ORGANIZATION_ID
+AND   currentAssignment.Employee_Status_ID = assignmentStatusType.ASSIGNMENT_STATUS_TYPE_ID
+
+AND   currentAssignment.ASSIGNMENT_ID = SupervisorData.Supervisor_ASSIGNMENT_ID(+)
+
+AND   currentAssignment.ASSIGNMENT_ID = SalaryInformation.ASSIGNMENT_ID(+)
+AND   NVL(SalaryInformation.Salary_Start,TRUNC(SYSDATE)) = NVL((Select MAX(SalaryInformation_2.DATE_FROM) 
+                                                               From CMP_SALARY SalaryInformation_2 
+															   Where SalaryInformation_2.ASSIGNMENT_ID = SalaryInformation.ASSIGNMENT_ID),TRUNC(SYSDATE))
+
+
+--  ================================= To Pull ONLY ACTIVE Associates 
+AND   perPeriodsService.ACTUAL_TERMINATION_DATE IS NULL
+AND   currentAssignment.Employee_Status_ID IN (1, 3, 5, 1001, 2001)
+AND   hrLocationsAll.LOCATION_CODE NOT LIKE '%Test%'
+
+
+ORDER BY Person_Names.name_Last_Name
+       , Person_Names.name_First_Name

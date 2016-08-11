@@ -1,0 +1,141 @@
+--	Exit_Inteview_Verification_DM
+--  =========================================================
+SELECT perAllPeople.PERSON_ID
+     , perPersonNames.FIRST_NAME                                                              First_Name
+	 , NVL(perPersonNames.MIDDLE_NAMES,'None')                                                Middle_Name
+	 , perPersonNames.LAST_NAME                                                               Last_Name
+	 , perPersonNames.KNOWN_AS                                                                Prefered_Name
+	 , perPersonNames.FULL_NAME                                                               Full_Nmae
+	 , TO_CHAR(perPeriodsService.ACTUAL_TERMINATION_DATE,'MM/DD/YYYY')                        Actual_Termination_Date
+	 , TO_CHAR(perPeriodsService.LAST_UPDATE_DATE,'MM/DD/YYYY')                               Last_Update_Date
+	 , (Select USER_STATUS 
+	    From PER_ASSIGNMENT_STATUS_TYPES_TL 
+        Where ASSIGNMENT_STATUS_TYPE_ID = perAllAssignments.ASSIGNMENT_STATUS_TYPE_ID)        Assignment_status
+	 , (Select paapf.PAYROLL_NAME 
+        From PAY_ALL_PAYROLLS_F       paapf
+		   , PAY_ASSIGNED_PAYROLLS_DN papd
+		   , PAY_PAYROLL_ASSIGNMENTS  ppa
+        Where papd.PAYROLL_ID = paapf.PAYROLL_ID
+        And   perAllAssignments.ASSIGNMENT_ID  = ppa.HR_ASSIGNMENT_ID
+        And   papd.PAYROLL_TERM_ID(+)     = ppa.PAYROLL_TERM_ID
+        And TRUNC (SYSDATE) BETWEEN paapf.EFFECTIVE_START_DATE
+        And paapf.EFFECTIVE_END_DATE
+        And TO_CHAR(papd.START_DATE,'YYYY-MM-DD') = (Select TO_CHAR(MAX(papd1.START_DATE),'YYYY-MM-DD') 
+		                                             From PAY_ASSIGNED_PAYROLLS_DN  papd1
+													    , PAY_REL_GROUPS_DN         asg2
+														, PAY_PAY_RELATIONSHIPS_DN  prl2
+												     Where asg2.PARENT_REL_GROUP_ID = papd1.PAYROLL_TERM_ID
+												     And prl2.PERSON_ID = perAllPeople.PERSON_ID
+												     And prl2.PAYROLL_RELATIONSHIP_ID = asg2.PAYROLL_RELATIONSHIP_ID
+												     And asg2.GROUP_TYPE = 'A'
+	                                             )								   )          Pay_Group 
+	 , (Select INTERNAL_LOCATION_CODE||'-'||LOCATION_NAME 
+	    From HR_LOCATIONS_ALL 
+		Where LOCATION_ID = perAllAssignments.LOCATION_ID)                                    Location_Code
+	 , NVL(hrOrganizationUnits.NAME,'none')                                                   Department
+	 , (Select PJF.JOB_CODE ||'-'|| PJFT.NAME 
+        From PER_JOBS_F PJF
+           , PER_JOBS_F_TL PJFT 
+	    Where PJF.JOB_ID = perAllAssignments.JOB_ID
+	    And   PJFT.JOB_ID = PJF.JOB_ID
+	    And  TRUNC(SYSDATE) Between PJF.EFFECTIVE_START_DATE And PJF.EFFECTIVE_END_DATE)      Job_Code
+	 , perAllAssignments.ASS_ATTRIBUTE1                                                       File_Number
+	 , perAllPeople.PERSON_NUMBER                                                             Person_Number
+	 , (Select ppm.FULL_NAME 
+	    From PER_ALL_PEOPLE_F             papfm
+		   , PER_PERSON_NAMES_F           ppm
+		   , PER_ASSIGNMENT_SUPERVISORS_F supv
+		Where perAllAssignments.ASSIGNMENT_ID = supv.ASSIGNMENT_ID(+)
+		And   papfm.PERSON_ID = supv.MANAGER_ID
+		And   papfm.PERSON_ID = ppm.PERSON_ID
+		And   ppm.NAME_TYPE = 'GLOBAL'
+		And   TRUNC (SYSDATE) Between papfm.EFFECTIVE_START_DATE
+                                  And papfm.EFFECTIVE_END_DATE
+		And   TRUNC(SYSDATE) Between supv.EFFECTIVE_START_DATE 
+                                 And supv.EFFECTIVE_END_DATE
+		And   TRUNC(SYSDATE) Between ppm.EFFECTIVE_START_DATE 
+		                         And ppm.EFFECTIVE_END_DATE)                                  Supervisor_Name							 
+     , (Select email.EMAIL_ADDRESS 
+	    From PER_ALL_PEOPLE_F             papfm
+		   , PER_EMAIL_ADDRESSES          email
+		   , PER_ASSIGNMENT_SUPERVISORS_F supv
+		Where perAllAssignments.ASSIGNMENT_ID = supv.ASSIGNMENT_ID(+)
+		And   papfm.PERSON_ID = supv.MANAGER_ID					
+		And   email.EMAIL_ADDRESS_ID = papfm.PRIMARY_EMAIL_ID(+)
+	    And   TRUNC (SYSDATE) Between papfm.EFFECTIVE_START_DATE
+                                  And papfm.EFFECTIVE_END_DATE
+		And   TRUNC(SYSDATE) Between supv.EFFECTIVE_START_DATE 
+                                 And supv.EFFECTIVE_END_DATE)                                 Supervisor_eMail
+	
+     , perEmailAddress.EMAIL_ADDRESS                                                          eMail_Address
+	 , perAllAssignments.ACTION_CODE                                                          Action_Code
+	 , perAllAssignments.MANAGER_FLAG                                                         ass_Is_Manager
+				
+     , currentAddress.add_Address_1                                                           Address_Line_1
+     , currentAddress.add_Address_2                                                           Address_Line_2
+	 , currentAddress.add_City                                                                City
+	 , currentAddress.add_Region_2                                                            State
+     , currentAddress.add_Zip                                                                 Zip_Code
+	 , currentAddress.add_Zip_Plus                                                            Zip_Code_Plus
+	
+FROM PER_ALL_ASSIGNMENTS_F                   perAllAssignments
+   , PER_PERSON_NAMES_F                      perPersonNames
+   , PER_PERIODS_OF_SERVICE                  perPeriodsService
+   , PER_ALL_PEOPLE_F                        perAllPeople
+   , HR_ORGANIZATION_UNITS_F_TL              hrOrganizationUnits
+   , PER_EMAIL_ADDRESSES                     perEmailAddress
+   
+    -- ===============================================================  currentAddress	
+   , (SELECT ADDRESS_ID                        add_Address_ID
+           , ADDRESS_LINE_1                    add_Address_1
+	       , ADDRESS_LINE_2                    add_Address_2
+	       , ADDRESS_LINE_3                    add_Address_3
+	       , ADDRESS_LINE_4                    add_Address_4
+	       , TOWN_OR_CITY                      add_City
+	       , REGION_1                          add_Region_1
+	       , REGION_2                          add_Region_2
+	       , REGION_3                          add_Region_3
+	       , POSTAL_CODE                       add_Zip
+	       , LONG_POSTAL_CODE                  add_Zip_Plus
+	       , COUNTRY                           add_Country
+	 
+      FROM PER_ADDRESSES_F     perAddresses
+
+      WHERE TRUNC(SYSDATE) Between perAddresses.EFFECTIVE_START_DATE 
+                               And perAddresses.EFFECTIVE_END_DATE )   currentAddress
+							   
+WHERE perAllAssignments.PERSON_ID = perPeriodsService.PERSON_ID
+AND   perAllAssignments.PERIOD_OF_SERVICE_ID = perPeriodsService.PERIOD_OF_SERVICE_ID
+AND   perAllPeople.PERSON_ID = perAllAssignments.PERSON_ID
+AND   perAllAssignments.PERSON_ID = perPersonNames.PERSON_ID
+AND   perAllAssignments.ORGANIZATION_ID = hrOrganizationUnits.ORGANIZATION_ID
+AND   perPersonNames.NAME_TYPE = 'GLOBAL'
+AND   perAllPeople.PRIMARY_EMAIL_ID = perEmailAddress.EMAIL_ADDRESS_ID(+)
+AND   TRUNC(perPeriodsService.ACTUAL_TERMINATION_DATE+1) Between perAllAssignments.EFFECTIVE_START_DATE And perAllAssignments.EFFECTIVE_END_DATE
+AND   TRUNC(SYSDATE) Between perAllPeople.EFFECTIVE_START_DATE And perAllPeople.EFFECTIVE_END_DATE
+AND   TRUNC(SYSDATE) Between perPersonNames.EFFECTIVE_START_DATE And perPersonNames.EFFECTIVE_END_DATE
+AND   TRUNC(SYSDATE) Between hrOrganizationUnits.EFFECTIVE_START_DATE And hrOrganizationUnits.EFFECTIVE_END_DATE
+
+AND   perAllPeople.MAILING_ADDRESS_ID = currentAddress.add_Address_ID(+)
+
+AND   hrOrganizationUnits.LANGUAGE = 'US'
+AND   perAllAssignments.ASSIGNMENT_TYPE = 'E'
+AND   perAllAssignments.PRIMARY_FLAG = 'Y'
+AND   perAllAssignments.PRIMARY_WORK_RELATION_FLAG = 'Y'
+--AND   perAllAssignments.MANAGER_FLAG='Y'
+AND   perAllAssignments.ACTION_CODE IN('VOLUNTARY_TERMINATION','RETIREMENT','RESIGNATION')
+AND   (perPeriodsService.LAST_UPDATE_DATE > (SYSDATE - 3)					
+       And perPeriodsService.ACTUAL_TERMINATION_DATE IS NOT NULL     
+       And TO_CHAR(perPeriodsService.ACTUAL_TERMINATION_DATE,'MM/DD/YYYY') >= (TO_CHAR(TRUNC(SYSDATE-3),'MM/DD/YYYY')))
+
+--AND perPeriodsService.LAST_UPDATE_DATE Between SYSDATE-1/36 And SYSDATE
+AND   exists(Select 1 
+             From PER_ALL_ASSIGNMENTS_F pam
+			 Where pam.ASSIGNMENT_TYPE = 'E'
+             And pam.PRIMARY_FLAG = 'Y'
+             And pam.PRIMARY_WORK_RELATION_FLAG = 'Y'
+			 And pam.PERSON_ID = perAllPeople.PERSON_ID
+			 And perPeriodsService.ACTUAL_TERMINATION_DATE+1 Between pam.EFFECTIVE_START_DATE 
+			                                                     And pam.EFFECTIVE_END_DATE
+			 And pam.ACTION_CODE IN('VOLUNTARY_TERMINATION','RETIREMENT','RESIGNATION') 
+					) 
